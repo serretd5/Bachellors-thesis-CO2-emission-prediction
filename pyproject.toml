@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vehicle-emissions"
 version = "1.0.0"
-description = "Modelado del consumo y las emisiones de CO2 de turismos a partir de datos de homologación de la EPA."
+description = "Fuel economy and CO2 emissions modeling for passenger vehicles from EPA certification data."
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.11"

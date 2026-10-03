@@ -1,110 +1,114 @@
-# Modelado del consumo y las emisiones de CO₂ de vehículos
+# Vehicle Fuel Economy & CO₂ Emissions Modeling
+
+**English** · [Deutsch](README.de.md)
 
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-1.5%2B-orange)
 ![License](https://img.shields.io/badge/license-Apache%202.0-green)
 
-Modelos de machine learning que estiman el **consumo homologado y las emisiones de CO₂** de turismos a partir de su
-especificación técnica, construidos sobre datos oficiales de la EPA (EE. UU.) con un pipeline reproducible,
-contratos de calidad de datos y una evaluación diseñada para no sobrestimar el rendimiento.
+Machine learning models that estimate the **certified fuel economy and CO₂ emissions** of passenger vehicles from their
+technical specification. Built on official U.S. EPA certification data, with a reproducible pipeline, data quality
+contracts and an evaluation protocol designed not to overstate performance.
 
-## Resultados clave
+## Key results
 
-| Problema | Mejor modelo | Métrica sobre datos no vistos* | Referencia |
+| Problem | Best model | Metric on unseen data* | Baseline |
 |---|---|---|---|
-| Consumo combinado desde la especificación | Gradient Boosting | **R² 0,91 · MAE 1,4 mpg** | MAE 4,9 mpg (media) |
-| CO₂ combinado desde la especificación | Gradient Boosting | **R² 0,89 · MAE 23 g/mi** | — |
-| Consumo por ciclo desde magnitudes de ensayo | Gradient Boosting | **R² 0,97 · MAE 1,6 mpg** | MAE 9,5 mpg (media) |
-| CO₂ por ciclo desde magnitudes de ensayo | Gradient Boosting | **R² 0,94 · MAE 18 g/mi** | — |
-| Exposición a la *Gas Guzzler Tax* | Red neuronal (MLP) | **F1 0,80 · PR-AUC 0,88** | F1 0,68 (regla experta) |
+| Combined fuel economy from specification | Gradient Boosting | **R² 0.91 · MAE 1.4 mpg** | MAE 4.9 mpg (mean) |
+| Combined CO₂ from specification | Gradient Boosting | **R² 0.89 · MAE 23 g/mi** | — |
+| Per-cycle fuel economy from test-bench quantities | Gradient Boosting | **R² 0.97 · MAE 1.6 mpg** | MAE 9.5 mpg (mean) |
+| Per-cycle CO₂ from test-bench quantities | Gradient Boosting | **R² 0.94 · MAE 18 g/mi** | — |
+| Gas Guzzler Tax exposure | Neural network (MLP) | **F1 0.80 · PR-AUC 0.88** | F1 0.68 (expert rule) |
 
-\* Validación cruzada agrupada: por familia de modelo (Fuel Economy Guide) o por vehículo ensayado (Test Car List),
-de forma que ninguna variante del mismo vehículo está a la vez en entrenamiento y validación.
+\* Grouped cross-validation: by model family (Fuel Economy Guide) or by tested vehicle (Test Car List), so that no
+variant of the same vehicle appears in both training and validation.
 
-**Hallazgos principales**
+**Main findings**
 
-* La **cilindrada** es el determinante dominante del consumo; le siguen sobrealimentación, hibridación y clase de vehículo.
-  Retirar el indicador de híbrido baja el R² de 0,91 a 0,77.
-* Con las **magnitudes físicas del ensayo** (masa equivalente, coeficientes de resistencia al avance A/B/C, potencia,
-  ciclo) el consumo de un vehículo de combustión se explica casi por completo (R² 0,97).
-* **Codificar el ciclo de ensayo con one-hot en lugar de ordinal** sube el R² lineal de 0,55 a 0,83.
-* En **eléctricos**, la validación cruzada aleatoria da R² 0,82 y la agrupada por vehículo 0,28: el modelo memorizaba
-  vehículos repetidos. Es el tipo de fuga que este proyecto está diseñado para detectar.
+* **Engine displacement** is by far the dominant driver of fuel economy, followed by forced induction, hybridization
+  and vehicle class. Removing the hybrid flag drops R² from 0.91 to 0.77.
+* Using the **physical test-bench quantities** (equivalent test weight, road-load coefficients A/B/C, power, test cycle),
+  the fuel economy of a combustion vehicle is explained almost entirely (R² 0.97).
+* **One-hot encoding the test cycle instead of an ordinal code** raises linear-model R² from 0.55 to 0.83.
+* For **electric vehicles**, random cross-validation reports R² 0.82 but grouping by vehicle yields 0.28: the model was
+  memorizing repeated vehicles. This is exactly the kind of leakage the project is designed to catch.
 
-## Ingeniería y validación
+## Engineering & validation
 
-| Práctica | Implementación |
+| Practice | Implementation |
 |---|---|
-| **Fuente única y trazable** | Todo se deriva del Excel publicado por la EPA mediante funciones deterministas (`src/vehicle_emissions/data.py`) |
-| **Contratos de datos** | `validation.py`: esquema, nulos, rangos físicos, dominios, coherencia ciudad/carretera, regla de exención y **coherencia física CO₂ ≈ k / mpg fila a fila** |
-| **Detección de corrupción silenciosa** | Los tests inyectan una columna desalineada, valores fuera de rango, nulos y columnas ausentes, y verifican que cada defecto se detecta |
-| **Sin fuga de información** | Variables derivadas del objetivo excluidas; preprocesado dentro de `Pipeline`; particiones agrupadas por familia o vehículo |
-| **Referencias obligatorias** | Cada modelo se compara con `DummyRegressor`/`DummyClassifier` y, en clasificación, con una regla experta |
-| **Selección honesta** | Hiperparámetros elegidos sólo con datos de entrenamiento (`GroupKFold` / `StratifiedGroupKFold`) |
-| **Robustez** | Ablación de variables, sensibilidad a extremos, CV repetida con varias semillas, análisis de residuos y de error por segmento |
-| **Interpretabilidad** | Importancia por permutación sobre variables originales; árbol de decisión auditable |
-| **Tests de regresión del rendimiento** | Umbrales mínimos de R² en `tests/test_models.py` para detectar degradaciones |
-| **CI** | GitHub Actions: `ruff`, `pytest` en Python 3.11 y 3.12, y ejecución completa de los notebooks |
+| **Single, traceable source** | Everything is derived from the EPA-published Excel files through deterministic functions (`src/vehicle_emissions/data.py`) |
+| **Data contracts** | `validation.py`: schema, nulls, physical ranges, category domains, city/highway consistency, exemption rule and a **row-level physical consistency check CO₂ ≈ k / mpg** |
+| **Silent-corruption detection** | Tests inject a misaligned column, out-of-range values, nulls and missing columns, and assert that each defect is caught |
+| **No information leakage** | Target-derived features excluded; preprocessing inside `Pipeline`; splits grouped by model family or tested vehicle |
+| **Mandatory baselines** | Every model is compared against `DummyRegressor`/`DummyClassifier` and, for classification, against an expert rule |
+| **Honest model selection** | Hyperparameters tuned on training data only (`GroupKFold` / `StratifiedGroupKFold`) |
+| **Robustness** | Feature ablation, outlier sensitivity, repeated CV across seeds, residual and per-segment error analysis |
+| **Interpretability** | Permutation importance on original features; auditable decision tree |
+| **Performance regression tests** | Minimum R² thresholds in `tests/test_models.py` to catch silent degradation |
+| **CI** | GitHub Actions: `ruff`, `pytest` on Python 3.11 and 3.12, and end-to-end notebook execution |
 
-## Estructura
+## Project structure
 
 ```
-├── .github/workflows/ci.yml     # Lint, tests y reproducibilidad de notebooks
+├── .github/workflows/ci.yml     # Lint, tests and notebook reproducibility
 ├── data/
-│   ├── raw/                     # Fuentes EPA (sin modificar)
-│   └── processed/               # Dataset validado (generado por el notebook 01)
-├── docs/model_card.md           # Ficha del modelo: uso previsto, métricas, limitaciones
+│   ├── raw/                     # EPA sources (unmodified)
+│   └── processed/               # Validated dataset (generated by notebook 01)
+├── docs/                        # Model card (EN / DE)
 ├── notebooks/
-│   ├── 01_ingesta_validacion_eda.ipynb
-│   ├── 02_modelado_consumo_co2.ipynb
-│   ├── 03_clasificacion_gas_guzzler.ipynb
-│   └── 04_ensayos_laboratorio_epa.ipynb
-├── reports/figures/             # Figuras generadas
+│   ├── 01_ingesta_validacion_eda.ipynb       # Ingestion, validation & EDA
+│   ├── 02_modelado_consumo_co2.ipynb         # Fuel economy & CO₂ modeling
+│   ├── 03_clasificacion_gas_guzzler.ipynb    # Gas Guzzler classification
+│   └── 04_ensayos_laboratorio_epa.ipynb      # Laboratory test models
+├── reports/figures/             # Generated figures
 ├── src/vehicle_emissions/
-│   ├── data.py                  # Ingesta, limpieza, codificación, grupos para CV
-│   ├── validation.py            # Contratos de calidad de datos
-│   ├── evaluation.py            # Protocolo de evaluación y gráficos
+│   ├── data.py                  # Ingestion, cleaning, encoding, CV groups
+│   ├── validation.py            # Data quality contracts
+│   ├── evaluation.py            # Evaluation protocol and plots
 │   └── paths.py
-├── tests/                       # Datos, contratos y umbrales de rendimiento
+├── tests/                       # Data, contracts and performance thresholds
 ├── Makefile
 └── pyproject.toml
 ```
 
 ## Notebooks
 
-1. **Ingesta, validación y EDA** — Carga del dataset oficial, contratos de calidad (con demostración de detección de
-   una columna desalineada), análisis exploratorio orientado a decisiones de modelado y control de fuga.
-2. **Modelado de consumo y CO₂** — Referencia, modelos lineales, polinómicos y Gradient Boosting; ajuste de
-   hiperparámetros agrupado; ablación; sensibilidad a extremos; diagnóstico de residuos e importancia por permutación.
-3. **Clasificación *Gas Guzzler*** — Problema desequilibrado (5,7 % positivos): regla experta, regresión logística,
-   árbol de decisión y MLP con particiones estratificadas y agrupadas, curvas precisión-recall y CV repetida.
-4. **Ensayos de laboratorio** — Modelos físicos sobre el EPA Test Car List: limpieza de marcadores no físicos,
-   codificación del ciclo, consumo y CO₂ por ciclo, y extensión a vehículos eléctricos.
+1. **Ingestion, validation & EDA** — Loads the official dataset, runs the quality contracts (including a demonstration
+   that a misaligned column is detected), exploratory analysis focused on modeling decisions, and leakage control.
+2. **Fuel economy & CO₂ modeling** — Baseline, linear, polynomial and Gradient Boosting models; grouped hyperparameter
+   search; ablation; outlier sensitivity; residual diagnostics and permutation importance.
+3. **Gas Guzzler classification** — Imbalanced problem (5.7 % positives): expert rule, logistic regression, decision
+   tree and MLP with stratified, grouped splits, precision-recall curves and repeated CV.
+4. **Laboratory test models** — Physics-informed models on the EPA Test Car List: removal of non-physical markers,
+   test-cycle encoding, per-cycle fuel economy and CO₂, and an extension to electric vehicles.
 
-## Datos
+Notebook narrative is currently in Spanish; code, figures and results are language-independent.
 
-| Fuente | Contenido |
+## Data
+
+| Source | Content |
 |---|---|
-| `2024_FE_Guide_DOE.xlsx` | Fuel Economy Guide 2024 (EPA / DOE), hoja `24MY`: 964 configuraciones de combustión del año modelo 2024 |
-| `epa_test_car_list_2024_curated.xlsx` | Extracto curado del EPA Test Car List 2024 (28 columnas): 4137 ensayos con masa, coeficientes de carretera, ciclo y emisiones |
+| `2024_FE_Guide_DOE.xlsx` | Fuel Economy Guide 2024 (EPA / DOE), sheet `24MY`: 964 combustion vehicle configurations, model year 2024 |
+| `epa_test_car_list_2024_curated.xlsx` | Curated extract of the EPA Test Car List 2024 (28 columns): 4,137 tests with test weight, road-load coefficients, cycle and emissions |
 
-## Reproducir
+## Reproduce
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 make install     # pip install -e ".[dev]"
-make test        # contratos de datos + tests
-make notebooks   # ejecuta los cuatro notebooks de principio a fin
+make test        # data contracts + tests
+make notebooks   # runs all four notebooks end to end
 ```
 
-## Limitaciones
+## Limitations
 
-* Un único año modelo (2024) y datos de homologación de EE. UU.; no directamente comparables con WLTP.
-* El error en híbridos es casi cuatro veces el de los convencionales: faltan variables de batería y tren eléctrico.
-* Sólo 20 vehículos diésel y 55 positivos de *Gas Guzzler*: las métricas de estos segmentos tienen alta varianza.
+* A single model year (2024) and U.S. certification data; results are not directly comparable to European WLTP values.
+* Error on full hybrids is almost four times that of conventional vehicles: battery and e-drive features are missing.
+* Only 20 diesel vehicles and 55 Gas Guzzler positives: metrics for these segments have high variance.
 
-Más detalle en la [ficha del modelo](docs/model_card.md).
+See the [model card](docs/model_card.md) for details.
 
-## Licencia
+## License
 
-Apache 2.0 — ver [`LICENSE`](LICENSE).
+Apache 2.0 — see [`LICENSE`](LICENSE).
