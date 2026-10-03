@@ -58,10 +58,10 @@ sodass keine Variante desselben Fahrzeugs gleichzeitig in Training und Validieru
 │   └── processed/               # Validierter Datensatz (erzeugt von Notebook 01)
 ├── docs/                        # Model Card (EN / DE)
 ├── notebooks/
-│   ├── 01_ingesta_validacion_eda.ipynb       # Datenaufnahme, Validierung und EDA
-│   ├── 02_modelado_consumo_co2.ipynb         # Modellierung von Verbrauch und CO₂
-│   ├── 03_clasificacion_gas_guzzler.ipynb    # Klassifikation Gas Guzzler
-│   └── 04_ensayos_laboratorio_epa.ipynb      # Modelle auf Prüfstandsdaten
+│   ├── 01_ingestion_validation_eda.ipynb       # Datenaufnahme, Validierung und EDA
+│   ├── 02_fuel_economy_co2_modeling.ipynb         # Modellierung von Verbrauch und CO₂
+│   ├── 03_gas_guzzler_classification.ipynb    # Klassifikation Gas Guzzler
+│   └── 04_laboratory_test_models.ipynb      # Modelle auf Prüfstandsdaten
 ├── reports/figures/             # Erzeugte Abbildungen
 ├── src/vehicle_emissions/
 │   ├── data.py                  # Datenaufnahme, Bereinigung, Kodierung, CV-Gruppen
@@ -85,7 +85,7 @@ sodass keine Variante desselben Fahrzeugs gleichzeitig in Training und Validieru
 4. **Modelle auf Prüfstandsdaten** — Physikalisch motivierte Modelle auf der EPA Test Car List: Entfernen nicht-physikalischer
    Markierungswerte, Kodierung des Prüfzyklus, Verbrauch und CO₂ je Zyklus sowie Erweiterung auf Elektrofahrzeuge.
 
-Die Erläuterungen in den Notebooks sind derzeit auf Spanisch; Code, Abbildungen und Ergebnisse sind sprachunabhängig.
+Die Notebooks sind auf Englisch dokumentiert.
 
 ## Daten
 

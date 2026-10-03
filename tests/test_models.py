@@ -1,7 +1,7 @@
-"""Tests de regresión del rendimiento: protegen contra degradaciones silenciosas del pipeline.
+"""Performance regression tests: guard against silent degradation of the pipeline.
 
-Los umbrales están por debajo de las métricas actuales con margen, de modo que un cambio que
-rompa la ingesta o introduzca un error de codificación los hará fallar.
+Thresholds sit below current metrics with a safety margin, so a change that breaks ingestion
+or introduces an encoding bug will make them fail.
 """
 
 from sklearn.compose import ColumnTransformer

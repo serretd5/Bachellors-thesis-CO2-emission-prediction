@@ -1,3 +1,3 @@
-"""vehicle_emissions: modelado del consumo y las emisiones de CO2 de turismos a partir de datos de homologación EPA."""
+"""vehicle_emissions: fuel economy and CO2 emissions modeling for passenger vehicles from EPA certification data."""
 
 __version__ = "1.0.0"

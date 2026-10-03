@@ -1,4 +1,4 @@
-"""Tests de ingesta y transformación de la Fuel Economy Guide."""
+"""Ingestion and transformation tests for the Fuel Economy Guide."""
 
 import pandas as pd
 
@@ -18,7 +18,7 @@ def test_clean_is_deterministic(fe_raw):
 
 
 def test_targets_preserved_row_by_row(fe_raw, fe):
-    """La limpieza no reordena filas: el objetivo coincide con el original posición a posición."""
+    """Cleaning never reorders rows: the target matches the source position by position."""
     original = fe_raw["Comb FE (Guide) - Conventional Fuel"].to_numpy()
     assert (fe["Comb FE (Guide)"].astype(int).to_numpy() == original).all()
 
@@ -44,16 +44,16 @@ def test_model_family_merges_drive_variants():
     df = pd.DataFrame({"Division": ["BMW", "BMW", "BMW"],
                        "Carline": ["X3 sDrive30i", "X3 xDrive30i AWD", "X5 xDrive40i"]})
     fam = model_family(df)
-    assert fam.nunique() == 3  # el sufijo AWD se elimina, pero sDrive/xDrive siguen siendo modelos distintos
+    assert fam.nunique() == 3  # the AWD suffix is stripped, but sDrive/xDrive remain distinct models
     df2 = pd.DataFrame({"Division": ["Toyota", "Toyota"], "Carline": ["SEQUOIA 2WD", "SEQUOIA 4WD"]})
     assert model_family(df2).nunique() == 1
 
 
 def test_epa_sentinels_present_in_source(epa):
-    """El extracto contiene marcadores no físicos que el pipeline debe filtrar."""
+    """The extract contains non-physical markers that the pipeline must filter out."""
     assert (epa["RND_ADJ_FE"] >= FE_SENTINEL_THRESHOLD).sum() > 0
 
 
 def test_vehicle_signature_groups_cycles(epa):
     sig = vehicle_signature(epa)
-    assert sig.nunique() < len(epa)  # cada vehículo aparece en varios ciclos
+    assert sig.nunique() < len(epa)  # each vehicle appears in several cycles

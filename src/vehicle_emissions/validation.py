@@ -1,8 +1,8 @@
-"""Validación de datos: contratos de esquema, rangos físicos y coherencia entre columnas.
+"""Data validation: schema contracts, physical ranges and cross-column consistency.
 
-Cada comprobación devuelve un :class:`Check`. ``validate_fe_guide`` las ejecuta todas y
-falla de forma explícita (``DataValidationError``) si alguna no se cumple, de modo que un
-cambio en la fuente o un error de transformación se detecta antes de entrenar ningún modelo.
+Each check returns a :class:`Check`. ``validate_fe_guide`` runs them all and fails loudly
+(``DataValidationError``) if any of them does not hold, so that a change in the source or a
+transformation bug is caught before any model is trained.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import pandas as pd
 
 from .data import FE_SENTINEL_THRESHOLD
 
-# g de CO2 por galón de combustible (factores de la EPA)
+# Grams of CO2 per gallon of fuel (EPA factors)
 CO2_PER_GALLON = {"gasoline": 8887.0, "diesel": 10180.0}
 
 REQUIRED_FE_COLUMNS = [
@@ -37,7 +37,7 @@ DRIVE_DOMAIN = {"2-Wheel Drive, Front", "2-Wheel Drive, Rear", "All Wheel Drive"
 
 
 class DataValidationError(ValueError):
-    """Se lanza cuando el dataset incumple algún contrato de calidad."""
+    """Raised when the dataset violates a data quality contract."""
 
 
 @dataclass
@@ -49,20 +49,20 @@ class Check:
 
 def _report(checks: list[Check]) -> pd.DataFrame:
     return pd.DataFrame([c.__dict__ for c in checks]).rename(
-        columns={"name": "Comprobación", "passed": "OK", "detail": "Detalle"})
+        columns={"name": "Check", "passed": "OK", "detail": "Detail"})
 
 
 def check_schema(df: pd.DataFrame, required=REQUIRED_FE_COLUMNS) -> Check:
     missing = [c for c in required if c not in df.columns]
-    return Check("Esquema: columnas requeridas", not missing,
-                 f"faltan {missing}" if missing else f"{len(required)} columnas presentes")
+    return Check("Schema: required columns", not missing,
+                 f"missing {missing}" if missing else f"{len(required)} columns present")
 
 
 def check_no_nulls(df: pd.DataFrame, cols=REQUIRED_FE_COLUMNS) -> Check:
     nulls = df[cols].isna().sum()
     nulls = nulls[nulls > 0]
-    return Check("Sin valores nulos en variables de modelado", nulls.empty,
-                 "0 nulos" if nulls.empty else nulls.to_dict().__repr__())
+    return Check("No nulls in modeling variables", nulls.empty,
+                 "0 nulls" if nulls.empty else f"nulls: {nulls.to_dict()}")
 
 
 def check_ranges(df: pd.DataFrame, ranges=PHYSICAL_RANGES) -> list[Check]:
@@ -70,26 +70,26 @@ def check_ranges(df: pd.DataFrame, ranges=PHYSICAL_RANGES) -> list[Check]:
     for col, (lo, hi) in ranges.items():
         s = df[col].astype(float)
         bad = int(((s < lo) | (s > hi)).sum())
-        out.append(Check(f"Rango físico {col} ∈ [{lo}, {hi}]", bad == 0,
-                         f"min={s.min():g}, max={s.max():g}, fuera de rango={bad}"))
+        out.append(Check(f"Physical range {col} ∈ [{lo}, {hi}]", bad == 0,
+                         f"min={s.min():g}, max={s.max():g}, out of range={bad}"))
     return out
 
 
 def check_binary(df: pd.DataFrame, cols=("Guzzler?", "Gas Guzzler Exempt", "Hybrid")) -> Check:
     bad = [c for c in cols if not set(df[c].unique()) <= {0, 1}]
-    return Check("Indicadores binarios ∈ {0, 1}", not bad, f"no binarias: {bad}" if bad else f"{list(cols)}")
+    return Check("Binary flags ∈ {0, 1}", not bad, f"non-binary: {bad}" if bad else f"{list(cols)}")
 
 
 def check_domain(df: pd.DataFrame) -> Check:
     unknown = set(df["Drive Desc"].unique()) - DRIVE_DOMAIN
-    return Check("Dominio de categorías (tracción)", not unknown,
-                 f"desconocidas: {unknown}" if unknown else f"{df['Drive Desc'].nunique()} categorías conocidas")
+    return Check("Category domain (drivetrain)", not unknown,
+                 f"unknown: {unknown}" if unknown else f"{df['Drive Desc'].nunique()} known categories")
 
 
 def co2_relative_error(df: pd.DataFrame) -> pd.Series:
-    """Desviación relativa entre el CO2 de la etiqueta y el implicado por el consumo.
+    """Relative deviation between label CO2 and the CO2 implied by fuel economy.
 
-    CO2 [g/mi] ≈ k / FE [mpg], con k = 8887 (gasolina) o 10180 (diésel).
+    CO2 [g/mi] ≈ k / FE [mpg], with k = 8887 (gasoline) or 10180 (diesel).
     """
     k = np.where(df["Fuel Usage"].str.contains("Diesel"), CO2_PER_GALLON["diesel"], CO2_PER_GALLON["gasoline"])
     implied = k / df["Comb Unrd Adj FE"].astype(float)
@@ -97,32 +97,32 @@ def co2_relative_error(df: pd.DataFrame) -> pd.Series:
 
 
 def check_co2_consistency(df: pd.DataFrame, median_tol=0.01, row_tol=0.05, min_share=0.99) -> Check:
-    """Coherencia física CO2–consumo fila a fila.
+    """Row-level physical consistency between CO2 and fuel economy.
 
-    Detecta desalineaciones silenciosas: si una columna se reordena por separado (p. ej. al
-    ordenar en una hoja de cálculo), la relación CO2·mpg ≈ constante deja de cumplirse.
+    Detects silent misalignment: if one column is re-sorted on its own (e.g. sorting a
+    spreadsheet without selecting every column), the relation CO2·mpg ≈ constant breaks.
     """
     err = co2_relative_error(df)
     share = float((err <= row_tol).mean())
     ok = err.median() <= median_tol and share >= min_share
-    return Check("Coherencia CO₂ ≈ k / mpg (fila a fila)", bool(ok),
-                 f"error mediano={err.median():.2%}, filas con error ≤ {row_tol:.0%}: {share:.1%}")
+    return Check("CO₂ ≈ k / mpg consistency (row level)", bool(ok),
+                 f"median error={err.median():.2%}, rows with error ≤ {row_tol:.0%}: {share:.1%}")
 
 
 def check_combined_between_city_hwy(df: pd.DataFrame, tol=1) -> Check:
     lo = df[["City FE (Guide)", "Hwy FE (Guide)"]].min(axis=1) - tol
     hi = df[["City FE (Guide)", "Hwy FE (Guide)"]].max(axis=1) + tol
     bad = int((~df["Comb FE (Guide)"].between(lo, hi)).sum())
-    return Check("Consumo combinado entre ciudad y carretera", bad == 0, f"incoherentes={bad}")
+    return Check("Combined FE between city and highway", bad == 0, f"inconsistent={bad}")
 
 
 def check_guzzler_rule(df: pd.DataFrame) -> Check:
     bad = int(((df["Gas Guzzler Exempt"] == 1) & (df["Guzzler?"] == 1)).sum())
-    return Check("Ningún vehículo exento paga la tasa gas guzzler", bad == 0, f"violaciones={bad}")
+    return Check("No exempt vehicle pays the gas guzzler tax", bad == 0, f"violations={bad}")
 
 
 def validate_fe_guide(df: pd.DataFrame, raise_on_error: bool = True) -> pd.DataFrame:
-    """Ejecuta todos los contratos sobre la Fuel Economy Guide limpia."""
+    """Run every contract on the cleaned Fuel Economy Guide."""
     schema = check_schema(df)
     if not schema.passed:
         if raise_on_error:
@@ -132,22 +132,22 @@ def validate_fe_guide(df: pd.DataFrame, raise_on_error: bool = True) -> pd.DataF
               check_combined_between_city_hwy(df), check_co2_consistency(df), check_guzzler_rule(df)]
     report = _report(checks)
     if raise_on_error and not report["OK"].all():
-        failed = report.loc[~report["OK"], ["Comprobación", "Detalle"]].to_string(index=False)
-        raise DataValidationError(f"El dataset no supera la validación:\n{failed}")
+        failed = report.loc[~report["OK"], ["Check", "Detail"]].to_string(index=False)
+        raise DataValidationError(f"Dataset failed validation:\n{failed}")
     return report
 
 
 def validate_epa_test_cars(df: pd.DataFrame, raise_on_error: bool = True) -> pd.DataFrame:
-    """Contratos mínimos del extracto de ensayos EPA (tras eliminar centinelas)."""
+    """Minimum contracts for the EPA test extract (after removing sentinel values)."""
     fe = df["RND_ADJ_FE"].dropna()
+    weight = df["Equivalent Test Weight (lbs.)"]
     checks = [
-        Check("Sin centinelas en RND_ADJ_FE", bool((fe < FE_SENTINEL_THRESHOLD).all()),
-              f"máx={fe.max():g}, ≥{FE_SENTINEL_THRESHOLD}: {int((fe >= FE_SENTINEL_THRESHOLD).sum())}"),
-        Check("Consumo positivo", bool((fe > 0).all()), f"min={fe.min():g}"),
-        Check("Peso de ensayo en [1500, 12000] lb",
-              bool(df["Equivalent Test Weight (lbs.)"].between(1500, 12000).all()),
-              f"rango=[{df['Equivalent Test Weight (lbs.)'].min()}, {df['Equivalent Test Weight (lbs.)'].max()}]"),
-        Check("Coeficiente A de carretera > 0", bool((df["Target Coef A (lbf)"].dropna() > 0).all()),
+        Check("No sentinel values in RND_ADJ_FE", bool((fe < FE_SENTINEL_THRESHOLD).all()),
+              f"max={fe.max():g}, ≥{FE_SENTINEL_THRESHOLD}: {int((fe >= FE_SENTINEL_THRESHOLD).sum())}"),
+        Check("Positive fuel economy", bool((fe > 0).all()), f"min={fe.min():g}"),
+        Check("Test weight in [1500, 12000] lb", bool(weight.between(1500, 12000).all()),
+              f"range=[{weight.min()}, {weight.max()}]"),
+        Check("Road-load coefficient A > 0", bool((df["Target Coef A (lbf)"].dropna() > 0).all()),
               f"min={df['Target Coef A (lbf)'].min():g}"),
     ]
     report = _report(checks)

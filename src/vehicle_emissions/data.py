@@ -1,8 +1,8 @@
-"""Ingesta y limpieza de los datos de homologación.
+"""Ingestion and cleaning of certification data.
 
-Todo el tratamiento parte del Excel publicado por la EPA/DOE. Cada transformación es
-determinista y se aplica en un único paso sobre el DataFrame completo, de modo que
-cada fila corresponde siempre a un único vehículo (ver ``validation.check_co2_consistency``).
+All processing starts from the Excel files published by the EPA/DOE. Every transformation is
+deterministic and applied in a single pass over the full DataFrame, so each row always
+corresponds to exactly one vehicle (see ``validation.check_co2_consistency``).
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import pandas as pd
 
 from .paths import EPA_TEST_CARS_PATH, FE_GUIDE_PATH
 
-# Columna original -> nombre de trabajo
+# Original column -> working name
 RENAME = {
     "Mfr Name": "Mfr Name",
     "Division": "Division",
@@ -43,7 +43,7 @@ RENAME = {
     "Comb CO2 Rounded Adjusted (as shown on FE Label)": "Comb CO2",
 }
 
-# Clases EPA agrupadas como "vehículo grande" (1) frente a "compacto" (0)
+# EPA classes grouped as "large vehicle" (1) vs "compact" (0)
 LARGE_CLASSES = {
     "Midsize Cars", "Large Cars", "Midsize Station Wagons",
     "Standard SUV 2WD", "Standard SUV 4WD",
@@ -58,17 +58,17 @@ _DRIVE_TOKENS = re.compile(r"\b(2WD|4WD|AWD|FWD|RWD|4MATIC\+?|XDRIVE|QUATTRO|SH-
 
 
 def load_fe_guide_raw(path=FE_GUIDE_PATH) -> pd.DataFrame:
-    """Lee la hoja 24MY tal cual viene en el Excel original."""
+    """Read sheet 24MY exactly as published."""
     df = pd.read_excel(path, sheet_name="24MY")
     df.columns = [c.strip() for c in df.columns]
     return df
 
 
 def model_family(df: pd.DataFrame) -> pd.Series:
-    """Identificador de familia de modelo (división + denominación sin la variante de tracción).
+    """Model family identifier (division + carline without the drivetrain suffix).
 
-    Se usa como grupo en la validación cruzada: las variantes 2WD/AWD de un mismo modelo
-    comparten motor y carrocería, y repartirlas entre entrenamiento y prueba inflaría las métricas.
+    Used as the group in cross-validation: 2WD/AWD variants of the same model share engine and
+    body, and splitting them between training and test would inflate the metrics.
     """
     base = df["Carline"].astype(str).str.upper().str.replace(_DRIVE_TOKENS, "", regex=True)
     base = base.str.replace(r"\s+", " ", regex=True).str.strip()
@@ -76,14 +76,14 @@ def model_family(df: pd.DataFrame) -> pd.Series:
 
 
 def clean_fe_guide(raw: pd.DataFrame) -> pd.DataFrame:
-    """Selecciona, renombra y tipa las variables de modelado.
+    """Select, rename and type the modeling variables.
 
-    * Elimina filas totalmente vacías.
-    * ``Guzzler?``: 'G' -> 1, vacío -> 0.
-    * ``Gas Guzzler Exempt``: 'T' (camión según NHTSA 1975, exento) -> 1, 'N' -> 0.
-    * ``Hybrid`` / ``Mild Hybrid``: extraídos del descriptor del modelo.
-    * Indicadores Y/N (desactivación de cilindros, distribución variable, stop/start) -> 0/1.
-    * ``Model Family``: grupo para validación cruzada sin fuga entre variantes.
+    * Drop fully empty rows.
+    * ``Guzzler?``: 'G' -> 1, empty -> 0.
+    * ``Gas Guzzler Exempt``: 'T' (truck under the 1975 NHTSA definition, exempt) -> 1, 'N' -> 0.
+    * ``Hybrid`` / ``Mild Hybrid``: extracted from the model type descriptor.
+    * Y/N flags (cylinder deactivation, variable valve timing/lift, stop/start) -> 0/1.
+    * ``Model Family``: group for leakage-free cross-validation across variants.
     """
     df = raw[list(RENAME)].rename(columns=RENAME).copy()
     df = df.dropna(how="all")
@@ -108,20 +108,20 @@ def clean_fe_guide(raw: pd.DataFrame) -> pd.DataFrame:
 
 
 def load_fe_guide(path=FE_GUIDE_PATH) -> pd.DataFrame:
-    """Carga + limpieza de la Fuel Economy Guide."""
+    """Load + clean the Fuel Economy Guide."""
     return clean_fe_guide(load_fe_guide_raw(path))
 
 
 def add_binary_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Codificación binaria compacta de las variables categóricas.
+    """Compact binary encoding of the categorical variables.
 
     ===================  =========================================
-    Variable             1 significa
+    Variable             1 means
     ===================  =========================================
-    ``Automatic``        transmisión no manual
-    ``AWD/4WD``          tracción total o 4x4 (incluye 4WD parcial)
-    ``Gasoline``         gasolina (0 = diésel)
-    ``Large``            clase media/grande, pick-up o vehículo especial
+    ``Automatic``        non-manual transmission
+    ``AWD/4WD``          all-wheel or four-wheel drive (incl. part-time 4WD)
+    ``Gasoline``         gasoline (0 = diesel)
+    ``Large``            midsize/large class, pickup or special purpose vehicle
     ===================  =========================================
     """
     out = df.copy()
@@ -136,20 +136,20 @@ def add_binary_features(df: pd.DataFrame) -> pd.DataFrame:
 # EPA Test Car List
 # ---------------------------------------------------------------------------
 
-#: Por encima de este valor ``RND_ADJ_FE`` no es un consumo físico (marcadores 999, 10000...).
+#: Above this value ``RND_ADJ_FE`` is not a physical fuel economy (markers such as 999, 10000).
 FE_SENTINEL_THRESHOLD = 999
 
 
 def load_epa_test_cars(path=EPA_TEST_CARS_PATH) -> pd.DataFrame:
-    """Lee el extracto curado del EPA Test Car List."""
+    """Read the curated extract of the EPA Test Car List."""
     return pd.read_excel(path)
 
 
 def vehicle_signature(df: pd.DataFrame) -> pd.Series:
-    """Identificador de vehículo ensayado (mismo peso, potencia, cilindrada y coeficientes de carretera).
+    """Tested-vehicle identifier (same test weight, power, displacement and road-load coefficients).
 
-    Cada vehículo aparece en varios ciclos (FTP, HWY, US06...). Agrupar por esta firma evita que el
-    mismo vehículo esté a la vez en entrenamiento y prueba.
+    Each vehicle appears in several cycles (FTP, HWY, US06...). Grouping by this signature keeps
+    the same vehicle from appearing in both training and test.
     """
     cols = ["Equivalent Test Weight (lbs.)", "Rated Horsepower", "Test Veh Displacement (L)",
             "Target Coef A (lbf)", "Target Coef B (lbf/mph)", "Target Coef C (lbf/mph**2)"]

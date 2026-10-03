@@ -10,7 +10,7 @@
 | **Model** | `GradientBoostingRegressor` (scikit-learn) with one-hot encoded categorical features, inside a `Pipeline` |
 | **Hyperparameters** | `n_estimators=400`, `max_depth=4`, `learning_rate=0.05`, `subsample=0.8` (selected with `GroupKFold` on training data) |
 | **Data** | Fuel Economy Guide 2024 (EPA / DOE), 964 combustion vehicle configurations, 596 model families |
-| **Notebook** | `notebooks/02_modelado_consumo_co2.ipynb` |
+| **Notebook** | `notebooks/02_fuel_economy_co2_modeling.ipynb` |
 
 ## Intended use
 

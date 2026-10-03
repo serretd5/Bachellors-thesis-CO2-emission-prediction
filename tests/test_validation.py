@@ -1,8 +1,8 @@
-"""Tests de los contratos de calidad de datos.
+"""Tests for the data quality contracts.
 
-Además de comprobar que el dataset real los supera, se inyectan defectos típicos
-(columna desalineada, valores fuera de rango, nulos, columnas ausentes) y se verifica
-que cada uno se detecta.
+Besides checking that the real dataset passes them, typical defects are injected
+(misaligned column, out-of-range values, nulls, missing columns) and each one is
+asserted to be detected.
 """
 
 import numpy as np
@@ -31,7 +31,7 @@ def test_co2_physics_holds_tightly(fe):
 
 @pytest.mark.parametrize("column", ["Comb CO2", "Comb Unrd Adj FE"])
 def test_detects_silently_misaligned_column(fe, column):
-    """Reordenar una sola columna (error típico al ordenar en una hoja de cálculo) debe fallar."""
+    """Re-sorting a single column (a typical spreadsheet mistake) must fail validation."""
     broken = fe.copy()
     broken[column] = broken[column].sample(frac=1, random_state=0).to_numpy()
     assert not check_co2_consistency(broken).passed
@@ -50,7 +50,7 @@ def test_detects_nulls(fe):
     broken = fe.copy()
     broken["# Gears"] = broken["# Gears"].astype("Float64")
     broken.loc[3, "# Gears"] = np.nan
-    with pytest.raises(DataValidationError, match="nulos"):
+    with pytest.raises(DataValidationError, match="nulls"):
         validate_fe_guide(broken)
 
 
